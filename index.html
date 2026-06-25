@@ -1787,19 +1787,15 @@ function fallbackManualCurlFlow(cleanCode) {
   }
 }
 
-btnPasteCode.addEventListener('click', async () => {
-  // Si l'utilisateur vient d'être redirigé depuis Withings vers cette page
-  // (cas normal en PWA/GitHub Pages), le code a déjà été capturé automatiquement
-  // par detectOAuthCallback() — on évite de le redemander inutilement.
-  const pendingCode = sessionStorage.getItem('withings_pending_code');
-  const code = pendingCode || prompt(
-    "Collez ici le paramètre 'code' présent dans l'URL de redirection après votre " +
-    "autorisation Withings (ex: ...?code=XXXX&state=...) :"
-  );
-  if (!code) return;
-  const cleanCode = code.includes('code=')
-    ? new URLSearchParams(code.split('?')[1] || code).get('code')
-    : code.trim();
+/**
+ * Traite un code d'autorisation OAuth reçu (qu'il vienne d'un callback
+ * automatique ou d'une saisie manuelle) : tente l'échange via le relais
+ * Cloudflare, et retombe sur le flux curl manuel si besoin.
+ */
+async function processOAuthCode(rawCode) {
+  const cleanCode = rawCode.includes('code=')
+    ? new URLSearchParams(rawCode.split('?')[1] || rawCode).get('code')
+    : rawCode.trim();
   sessionStorage.removeItem('withings_pending_code'); // usage unique (le code OAuth n'est valable qu'une fois)
 
   const redirectUri = redirectUriInput.value.trim();
@@ -1818,6 +1814,19 @@ btnPasteCode.addEventListener('click', async () => {
   // Le relais n'est pas configuré ou a échoué : on retombe sur le flux manuel,
   // qui reste toujours disponible comme garantie de fonctionnement.
   fallbackManualCurlFlow(cleanCode);
+}
+
+btnPasteCode.addEventListener('click', async () => {
+  // Bouton de secours : utile si l'échange automatique au retour de Withings
+  // a échoué, ou si l'utilisateur veut coller un code manuellement (cas rare,
+  // par exemple redirect_uri pointant ailleurs que cette page).
+  const pendingCode = sessionStorage.getItem('withings_pending_code');
+  const code = pendingCode || prompt(
+    "Collez ici le paramètre 'code' présent dans l'URL de redirection après votre " +
+    "autorisation Withings (ex: ...?code=XXXX&state=...) :"
+  );
+  if (!code) return;
+  await processOAuthCode(code);
 });
 
 /**
@@ -1928,24 +1937,23 @@ btnFetchMeasures.addEventListener('click', async () => {
 
 // Si l'utilisateur revient sur la page avec ?code=... dans l'URL (cas normal
 // maintenant que redirect_uri pointe vers cette page GitHub Pages elle-même),
-// on récupère directement le code et on nettoie l'URL pour éviter qu'il ne
-// reste visible/partagé par erreur (ex. capture d'écran, historique navigateur).
+// on récupère le code et on déclenche IMMÉDIATEMENT l'échange via le relais —
+// aucun clic n'est nécessaire. Le bouton "Coller le code reçu manuellement"
+// reste affiché uniquement comme filet de secours (si l'échange automatique
+// échoue, ou pour une saisie manuelle dans un cas atypique).
 (function detectOAuthCallback() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
   if (code) {
     activateTab('api');
-    setConnectionStatus(
-      null,
-      `Code OAuth reçu (${code.slice(0, 8)}…). Cliquez sur "Coller le code reçu ` +
-      `manuellement" pour générer la commande d'échange code → token.`
-    );
-    btnPasteCode.classList.remove('hidden');
-    // Pré-remplit le code pour que le prochain prompt n'ait plus qu'à être validé.
-    sessionStorage.setItem('withings_pending_code', code);
-    // Nettoie l'URL (retire ?code=...&state=...) sans recharger la page.
+    // Nettoie l'URL (retire ?code=...&state=...) sans recharger la page —
+    // fait avant l'échange pour éviter que le code reste visible si l'échange
+    // est long ou si l'utilisateur recharge entre-temps.
     const cleanUrl = window.location.origin + window.location.pathname;
     window.history.replaceState({}, document.title, cleanUrl);
+
+    btnPasteCode.classList.remove('hidden'); // visible en filet de secours
+    processOAuthCode(code); // déclenchement automatique, sans attendre de clic
   }
 })();
 
