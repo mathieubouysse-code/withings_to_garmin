@@ -892,7 +892,7 @@
         <span class="card-sub">Endpoint Measure — Getmeas</span>
       </div>
 
-      <div class="field-grid">
+      <div class="field-grid three">
         <div class="field">
           <label for="dateFrom">Date de début</label>
           <input type="date" id="dateFrom">
@@ -900,6 +900,11 @@
         <div class="field">
           <label for="dateTo">Date de fin</label>
           <input type="date" id="dateTo">
+        </div>
+        <div class="field">
+          <label for="heightCmApi">Taille (cm)</label>
+          <input type="text" id="heightCmApi" value="172" placeholder="ex : 172" inputmode="numeric">
+          <span class="field-hint">Calcule l'IMC si absent des mesures Withings.</span>
         </div>
       </div>
 
@@ -1527,7 +1532,7 @@ const WITHINGS_MEASURE_TYPES = [1, 6, 11, 76, 77, 88];
 // valeur par l'URL affichée après `npx wrangler deploy` (voir cf-worker/DEPLOY.md).
 // Si laissée vide ou inaccessible, l'app retombe automatiquement sur le flux
 // manuel (commande curl à copier-coller) — aucune fonctionnalité n'est perdue.
-const OAUTH_RELAY_URL = 'https://fancy-dew-929d.mathieu-bouysse.workers.dev';
+const OAUTH_RELAY_URL = 'https://withings-oauth-relay.VOTRE-SOUS-DOMAINE.workers.dev';
 
 const clientIdInput = document.getElementById('withingsClientId');
 const clientSecretInput = document.getElementById('withingsClientSecret');
@@ -1787,8 +1792,17 @@ async function fetchWithingsMeasures(accessToken, startDate, endDate) {
 // Mapping des types de mesure Withings vers les champs internes utilisés par l'encodeur FIT.
 const WITHINGS_TYPE_TO_FIELD = { 1: 'weight', 6: 'fat', 11: 'bmi', 76: 'muscle', 77: 'water', 88: 'bone' };
 
-/** Convertit la réponse brute Getmeas (measuregrps) en enregistrements internes. */
-function convertMeasureGroupsToRecords(measuregrps) {
+/**
+ * Convertit la réponse brute Getmeas (measuregrps) en enregistrements internes.
+ * @param {Array} measuregrps - groupes de mesures retournés par l'API Withings
+ * @param {?number} heightCm - taille en cm, utilisée pour calculer le BMI si absent
+ *        des mesures retournées par l'API (cas fréquent : Withings ne calcule
+ *        le type 11/IMC que si la taille a été configurée sur le profil de
+ *        l'utilisateur — sinon ce type de mesure est simplement absent).
+ */
+function convertMeasureGroupsToRecords(measuregrps, heightCm = null) {
+  const heightM2 = heightCm ? Math.pow(heightCm / 100, 2) : null;
+
   return measuregrps.map(grp => {
     const rec = { timestamp: toFitTimestamp(new Date(grp.date * 1000)), dateLabel: new Date(grp.date * 1000) };
     METRIC_DEFS.forEach(m => { rec[m.key] = null; });
@@ -1798,8 +1812,18 @@ function convertMeasureGroupsToRecords(measuregrps) {
         rec[field] = measure.value * Math.pow(10, measure.unit);
       }
     }
+    // Calcul de secours du BMI si Withings ne l'a pas fourni (type 11 absent).
+    if (rec.bmi == null && heightM2 && rec.weight != null) {
+      rec.bmi = rec.weight / heightM2;
+    }
     return rec;
   }).filter(r => r.weight != null);
+}
+
+function getApiHeightCm() {
+  const input = document.getElementById('heightCmApi');
+  const v = parseFloat(String(input.value).replace(',', '.'));
+  return Number.isFinite(v) && v > 0 ? v : null;
 }
 
 btnFetchMeasures.addEventListener('click', async () => {
@@ -1819,7 +1843,7 @@ btnFetchMeasures.addEventListener('click', async () => {
 
   try {
     const groups = await fetchWithingsMeasures(accessToken, dateFromInput.value, dateToInput.value);
-    const records = convertMeasureGroupsToRecords(groups);
+    const records = convertMeasureGroupsToRecords(groups, getApiHeightCm());
     renderResultsBlock(apiResults, records, `API Withings (${groups.length} relevés bruts)`);
   } catch (err) {
     console.error(err);
