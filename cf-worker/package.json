@@ -1,0 +1,17 @@
+{
+  "name": "withings-oauth-relay",
+  "version": "1.0.0",
+  "description": "Relais OAuth Withings minimal pour échange code->token, déployé sur Cloudflare Workers",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "wrangler": "^4.104.0"
+  }
+}
