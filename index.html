@@ -1359,7 +1359,7 @@ function downloadFitFile(bytes, filename) {
   URL.revokeObjectURL(url);
 }
 
-function renderResultsBlock(containerEl, records, sourceLabel) {
+function renderResultsBlock(containerEl, records, sourceLabel, periodEndDate = null) {
   if (records.length === 0) {
     containerEl.innerHTML = `
       <div class="notice notice-error">
@@ -1408,6 +1408,12 @@ function renderResultsBlock(containerEl, records, sourceLabel) {
       const bytes = buildFitFile(records);
       const filename = `withings_weight_${new Date().toISOString().slice(0,10)}.fit`;
       downloadFitFile(bytes, filename);
+
+      // Mémorise la date de fin de cette période exportée (Mode 2 uniquement),
+      // pour pré-remplir automatiquement le prochain export à date+1.
+      if (periodEndDate) {
+        localStorage.setItem('withings_last_export_end_date', periodEndDate);
+      }
     } catch (err) {
       console.error(err);
       alert('Erreur lors de la génération du fichier .FIT : ' + err.message);
@@ -1548,13 +1554,24 @@ const apiResults = document.getElementById('apiResults');
 const dateFromInput = document.getElementById('dateFrom');
 const dateToInput = document.getElementById('dateTo');
 
-// Pré-remplissage de la période : 5 dernières années par défaut.
+// Pré-remplissage de la période : reprend automatiquement le lendemain de la
+// date de fin du dernier export réussi (Mode 2) si elle est connue, sinon
+// retombe sur "5 dernières années" par défaut (premier usage).
 (function initDefaultPeriod() {
   const today = new Date();
-  const fiveYearsAgo = new Date(today);
-  fiveYearsAgo.setFullYear(today.getFullYear() - 5);
+  const lastExportEndDate = localStorage.getItem('withings_last_export_end_date');
+
   dateToInput.value = today.toISOString().slice(0, 10);
-  dateFromInput.value = fiveYearsAgo.toISOString().slice(0, 10);
+
+  if (lastExportEndDate) {
+    const nextStart = new Date(lastExportEndDate + 'T00:00:00');
+    nextStart.setDate(nextStart.getDate() + 1); // lendemain de la fin du dernier export
+    dateFromInput.value = nextStart.toISOString().slice(0, 10);
+  } else {
+    const fiveYearsAgo = new Date(today);
+    fiveYearsAgo.setFullYear(today.getFullYear() - 5);
+    dateFromInput.value = fiveYearsAgo.toISOString().slice(0, 10);
+  }
 })();
 
 toggleSecretBtn.addEventListener('click', () => {
@@ -1921,7 +1938,7 @@ btnFetchMeasures.addEventListener('click', async () => {
   try {
     const groups = await fetchWithingsMeasures(accessToken, dateFromInput.value, dateToInput.value);
     const records = convertMeasureGroupsToRecords(groups, getApiHeightCm());
-    renderResultsBlock(apiResults, records, `API Withings (${groups.length} relevés bruts)`);
+    renderResultsBlock(apiResults, records, `API Withings (${groups.length} relevés bruts)`, dateToInput.value);
   } catch (err) {
     console.error(err);
     apiResults.innerHTML = `
