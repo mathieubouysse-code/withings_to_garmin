@@ -1,0 +1,13 @@
+name = "withings-oauth-relay"
+main = "src/index.js"
+compatibility_date = "2026-06-25"
+
+# Aucune variable sensible ici : le Client Secret Withings sera ajouté via
+# `wrangler secret put WITHINGS_CLIENT_SECRET` (jamais visible en clair dans
+# ce fichier ni dans le dashboard une fois défini). Voir DEPLOY.md.
+
+[vars]
+# Domaines autorisés à appeler ce Worker (CORS). Remplacez par votre URL
+# GitHub Pages exacte. Mettre plusieurs origines séparées par une virgule
+# n'est pas supporté nativement ici : on gère la liste directement dans le code.
+ALLOWED_ORIGIN = "https://mathieubouysse-code.github.io"
