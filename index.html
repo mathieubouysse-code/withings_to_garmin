@@ -1,0 +1,1919 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Withings → Garmin FIT</title>
+
+<!-- ===== PWA : manifest + meta tags d'installation (Android/Chrome + iOS/Safari) ===== -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#09090b">
+<meta name="background-color" content="#09090b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="W→Garmin">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+
+<style>
+  /* ============================================================
+     DESIGN TOKENS — Zinc (neutres) + Blue #2563eb (accent actif)
+     Mode sombre par défaut. Bordures 2px plutôt que blocs pleins.
+     Alertes/contenants en rgba à faible opacité (0.04–0.12).
+     ============================================================ */
+  :root {
+    --zinc-950: #09090b;
+    --zinc-900: #18181b;
+    --zinc-800: #27272a;
+    --zinc-700: #3f3f46;
+    --zinc-600: #52525b;
+    --zinc-500: #71717a;
+    --zinc-400: #a1a1aa;
+    --zinc-300: #d4d4d8;
+    --zinc-200: #e4e4e7;
+    --zinc-100: #f4f4f5;
+
+    --blue: #2563eb;
+    --blue-soft: rgba(37, 99, 235, 0.10);
+    --blue-soft-strong: rgba(37, 99, 235, 0.18);
+    --blue-border: rgba(37, 99, 235, 0.35);
+
+    --green: #22c55e;
+    --green-soft: rgba(34, 197, 94, 0.08);
+    --amber: #f59e0b;
+    --amber-soft: rgba(245, 158, 11, 0.08);
+    --red: #ef4444;
+    --red-soft: rgba(239, 68, 68, 0.08);
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+
+    --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    --font-mono: "SF Mono", "JetBrains Mono", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--zinc-950);
+    color: var(--zinc-200);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 15% 0%, rgba(37, 99, 235, 0.07), transparent 45%),
+      radial-gradient(circle at 85% 100%, rgba(37, 99, 235, 0.05), transparent 40%);
+  }
+
+  .shell {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ---------- HEADER ---------- */
+  header.app-header {
+    border-bottom: 2px solid var(--zinc-800);
+    padding-bottom: 28px;
+    margin-bottom: 32px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .brand-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-md);
+    background: var(--blue-soft);
+    border: 2px solid var(--blue-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .brand-icon svg { width: 22px; height: 22px; stroke: var(--blue); }
+
+  .brand h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.01em;
+    color: var(--zinc-100);
+  }
+
+  .brand p {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: var(--zinc-500);
+  }
+
+  .header-meta {
+    font-size: 12px;
+    color: var(--zinc-500);
+    text-align: right;
+    line-height: 1.6;
+    font-family: var(--font-mono);
+  }
+
+  .header-meta strong { color: var(--zinc-300); font-weight: 500; }
+
+  /* ---------- MODE SWITCH (tabs) ---------- */
+  .mode-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .mode-tab {
+    background: var(--zinc-900);
+    border: 2px solid var(--zinc-800);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    color: var(--zinc-300);
+    font-family: inherit;
+  }
+
+  .mode-tab:hover { border-color: var(--zinc-700); }
+
+  .mode-tab.active {
+    border-color: var(--blue-border);
+    background: var(--blue-soft);
+  }
+
+  .mode-tab-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .mode-tab-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--zinc-500);
+  }
+
+  .mode-tab.active .mode-tab-label { color: var(--blue); }
+
+  .mode-tab-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--zinc-100);
+    margin-bottom: 4px;
+  }
+
+  .mode-tab-desc {
+    font-size: 12.5px;
+    color: var(--zinc-500);
+    line-height: 1.5;
+  }
+
+  .mode-tab-radio {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    border: 2px solid var(--zinc-600);
+    flex-shrink: 0;
+    position: relative;
+  }
+  .mode-tab.active .mode-tab-radio { border-color: var(--blue); }
+  .mode-tab.active .mode-tab-radio::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background: var(--blue);
+  }
+
+  /* ---------- SECTIONS / CARDS ---------- */
+  .panel {
+    display: none;
+  }
+  .panel.active { display: block; }
+
+  section.card {
+    background: var(--zinc-900);
+    border: 2px solid var(--zinc-800);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  section.card + section.card { margin-top: 0; }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 2px solid var(--zinc-800);
+  }
+
+  .card-header h2 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--zinc-100);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .card-header h2 .step-num {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    background: var(--blue-soft);
+    border: 2px solid var(--blue-border);
+    color: var(--blue);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+  }
+
+  .card-sub {
+    font-size: 12px;
+    color: var(--zinc-500);
+  }
+
+  /* ---------- DROPZONE ---------- */
+  .dropzone {
+    border: 2px dashed var(--zinc-700);
+    border-radius: var(--radius-md);
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    background: rgba(255,255,255,0.015);
+  }
+
+  .dropzone:hover, .dropzone.dragover {
+    border-color: var(--blue);
+    background: var(--blue-soft);
+  }
+
+  .dropzone svg { width: 30px; height: 30px; stroke: var(--zinc-500); margin-bottom: 12px; }
+  .dropzone.dragover svg, .dropzone.has-file svg { stroke: var(--blue); }
+
+  .dropzone-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--zinc-200);
+    margin-bottom: 4px;
+  }
+
+  .dropzone-sub {
+    font-size: 12px;
+    color: var(--zinc-500);
+  }
+
+  .dropzone-sub code {
+    background: var(--zinc-800);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--zinc-300);
+  }
+
+  .file-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--blue-soft);
+    border: 2px solid var(--blue-border);
+    color: var(--zinc-100);
+    padding: 7px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    font-family: var(--font-mono);
+    margin-top: 14px;
+  }
+
+  .file-chip svg { width: 14px; height: 14px; stroke: var(--blue); }
+
+  /* ---------- FORM ELEMENTS ---------- */
+  .field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .field-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .field label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--zinc-400);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .field label .req {
+    color: var(--blue);
+    font-size: 10px;
+  }
+
+  .field input[type=text], .field input[type=password], .field input[type=date], .field select {
+    background: var(--zinc-950);
+    border: 2px solid var(--zinc-800);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    color: var(--zinc-100);
+    font-size: 13.5px;
+    font-family: var(--font-mono);
+    transition: border-color 0.15s ease;
+    width: 100%;
+  }
+
+  .field input::placeholder { color: var(--zinc-600); }
+
+  .field input:focus, .field select:focus {
+    outline: none;
+    border-color: var(--blue);
+  }
+
+  .field-hint {
+    font-size: 11px;
+    color: var(--zinc-600);
+  }
+
+  .input-with-toggle { position: relative; }
+  .input-with-toggle input { padding-right: 40px; }
+  .toggle-visibility {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--zinc-500);
+    padding: 4px;
+    display: flex;
+  }
+  .toggle-visibility:hover { color: var(--zinc-300); }
+  .toggle-visibility svg { width: 16px; height: 16px; }
+
+  /* ---------- BUTTONS ---------- */
+  .btn {
+    appearance: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 11px 18px;
+    font-size: 13.5px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+  }
+
+  .btn svg { width: 15px; height: 15px; }
+
+  .btn-primary {
+    background: var(--blue);
+    color: #fff;
+  }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-primary:disabled { background: var(--zinc-700); color: var(--zinc-500); cursor: not-allowed; }
+
+  .btn-secondary {
+    background: var(--zinc-800);
+    color: var(--zinc-200);
+    border: 2px solid var(--zinc-700);
+  }
+  .btn-secondary:hover { background: var(--zinc-700); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--zinc-400);
+    border: 2px solid var(--zinc-800);
+  }
+  .btn-ghost:hover { color: var(--zinc-200); border-color: var(--zinc-700); }
+
+  .btn-block { width: 100%; justify-content: center; }
+
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  /* ---------- ALERTS / NOTICES (rgba subtiles) ---------- */
+  .notice {
+    border-radius: var(--radius-md);
+    border: 2px solid;
+    padding: 14px 16px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    display: flex;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .notice svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }
+
+  .notice-info { background: var(--blue-soft); border-color: rgba(37, 99, 235, 0.25); color: var(--zinc-300); }
+  .notice-info svg { stroke: var(--blue); }
+
+  .notice-warn { background: var(--amber-soft); border-color: rgba(245, 158, 11, 0.25); color: var(--zinc-300); }
+  .notice-warn svg { stroke: var(--amber); }
+
+  .notice-success { background: var(--green-soft); border-color: rgba(34, 197, 94, 0.25); color: var(--zinc-300); }
+  .notice-success svg { stroke: var(--green); }
+
+  .notice-error { background: var(--red-soft); border-color: rgba(239, 68, 68, 0.25); color: var(--zinc-300); }
+  .notice-error svg { stroke: var(--red); }
+
+  .notice strong { color: var(--zinc-100); font-weight: 600; }
+
+  .notice-body { flex: 1; }
+  .notice-title { font-weight: 600; color: var(--zinc-100); margin-bottom: 3px; font-size: 13px; }
+
+  details.notice-details { margin-top: 10px; }
+  details.notice-details summary {
+    cursor: pointer;
+    font-size: 11.5px;
+    color: var(--blue);
+    font-weight: 500;
+  }
+  details.notice-details pre {
+    margin-top: 10px;
+    background: var(--zinc-950);
+    border: 2px solid var(--zinc-800);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    font-size: 11px;
+    overflow-x: auto;
+    color: var(--zinc-400);
+    font-family: var(--font-mono);
+    line-height: 1.6;
+  }
+
+  /* ---------- METRIC PILLS (statut de mapping des métriques) ---------- */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .metric-pill {
+    border: 2px solid var(--zinc-800);
+    border-radius: var(--radius-md);
+    padding: 12px 10px;
+    text-align: center;
+    background: rgba(255,255,255,0.015);
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+
+  .metric-pill.found {
+    border-color: rgba(34, 197, 94, 0.3);
+    background: var(--green-soft);
+  }
+
+  .metric-pill.missing {
+    border-color: var(--zinc-800);
+    opacity: 0.55;
+  }
+
+  .metric-pill-icon {
+    width: 22px; height: 22px;
+    margin: 0 auto 8px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--zinc-800);
+  }
+  .metric-pill.found .metric-pill-icon { background: rgba(34, 197, 94, 0.15); }
+  .metric-pill-icon svg { width: 13px; height: 13px; stroke: var(--zinc-500); }
+  .metric-pill.found .metric-pill-icon svg { stroke: var(--green); }
+
+  .metric-pill-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--zinc-300);
+    margin-bottom: 2px;
+  }
+
+  .metric-pill-count {
+    font-size: 10.5px;
+    color: var(--zinc-500);
+    font-family: var(--font-mono);
+  }
+
+  /* ---------- TABLE PREVIEW ---------- */
+  .table-wrap {
+    border: 2px solid var(--zinc-800);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .table-scroll {
+    max-height: 360px;
+    overflow: auto;
+  }
+
+  table.preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: var(--font-mono);
+  }
+
+  table.preview-table thead th {
+    background: var(--zinc-950);
+    color: var(--zinc-400);
+    text-align: left;
+    padding: 10px 12px;
+    font-weight: 600;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 2px solid var(--zinc-800);
+    position: sticky;
+    top: 0;
+  }
+
+  table.preview-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--zinc-800);
+    color: var(--zinc-300);
+    white-space: nowrap;
+  }
+
+  table.preview-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+  table.preview-table tbody tr:last-child td { border-bottom: none; }
+
+  td.cell-missing { color: var(--zinc-600); font-style: italic; }
+  td.cell-date { color: var(--zinc-400); }
+  td.cell-weight { color: var(--zinc-100); font-weight: 600; }
+
+  .table-footer {
+    padding: 10px 14px;
+    background: var(--zinc-950);
+    border-top: 2px solid var(--zinc-800);
+    font-size: 11.5px;
+    color: var(--zinc-500);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ---------- OAUTH CONNECTION STATE ---------- */
+  .connection-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--zinc-800);
+    background: rgba(255,255,255,0.015);
+    margin-bottom: 18px;
+    font-size: 12.5px;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--zinc-600);
+    flex-shrink: 0;
+  }
+  .status-dot.connected { background: var(--green); box-shadow: 0 0 0 3px rgba(34,197,94,0.15); }
+  .status-dot.error { background: var(--red); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+
+  .connection-status .status-text strong { color: var(--zinc-100); }
+  .connection-status .status-text { color: var(--zinc-400); }
+
+  /* ---------- PROGRESS / STEPS ---------- */
+  .step-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .step-item {
+    display: flex;
+    gap: 12px;
+    padding: 10px 0;
+  }
+
+  .step-marker {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--zinc-700);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--zinc-500);
+    font-family: var(--font-mono);
+    margin-top: 1px;
+  }
+
+  .step-item.done .step-marker { background: var(--green); border-color: var(--green); color: #052e16; }
+  .step-item.active .step-marker { border-color: var(--blue); color: var(--blue); }
+
+  .step-text { font-size: 13px; color: var(--zinc-400); }
+  .step-item.done .step-text { color: var(--zinc-300); }
+  .step-item.active .step-text { color: var(--zinc-100); font-weight: 500; }
+
+  /* ---------- SUMMARY STATS ---------- */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .stat-box {
+    border: 2px solid var(--zinc-800);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    background: rgba(255,255,255,0.015);
+  }
+
+  .stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--zinc-100);
+    font-family: var(--font-mono);
+    letter-spacing: -0.02em;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--zinc-500);
+    margin-top: 3px;
+  }
+
+  /* ---------- FOOTER ---------- */
+  footer.app-footer {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 2px solid var(--zinc-800);
+    font-size: 11.5px;
+    color: var(--zinc-600);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  footer.app-footer a { color: var(--zinc-500); text-decoration: none; }
+  footer.app-footer a:hover { color: var(--blue); }
+
+  .hidden { display: none !important; }
+
+  /* ---------- SCROLLBAR ---------- */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--zinc-700); border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--zinc-600); }
+
+  /* ---------- RESPONSIVE ---------- */
+  @media (max-width: 760px) {
+    .mode-switch { grid-template-columns: 1fr; }
+    .field-grid, .field-grid.three { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .metrics-grid { grid-template-columns: repeat(3, 1fr); }
+    header.app-header { flex-direction: column; }
+    .header-meta { text-align: left; }
+  }
+
+  /* ---------- ACCESSIBILITY ---------- */
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ================= HEADER ================= -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 12L2 9Z"/><path d="M11 3 8 9l4 12 4-12-3-6"/><path d="M2 9h20"/></svg>
+      </div>
+      <div>
+        <h1>Withings → Garmin&nbsp;FIT</h1>
+        <p>Conversion intégrale des métriques de pesée — sans perte de données</p>
+      </div>
+    </div>
+    <div class="header-meta">
+      Encodeur <strong>FIT Binary Protocol v2.0</strong><br>
+      Message global <strong>weight_scale (#30)</strong>
+    </div>
+  </header>
+
+  <!-- ================= MODE SWITCH ================= -->
+  <div class="mode-switch" role="tablist" aria-label="Choix du mode de conversion">
+    <button class="mode-tab active" id="tabCsv" role="tab" aria-selected="true" aria-controls="panelCsv">
+      <div class="mode-tab-top">
+        <span class="mode-tab-label">Mode 1 — Hors ligne</span>
+        <span class="mode-tab-radio"></span>
+      </div>
+      <div class="mode-tab-title">Convertisseur de fichier CSV</div>
+      <div class="mode-tab-desc">Glissez votre export <code>weight.csv</code> Withings. Aucune donnée n'est envoyée à un serveur.</div>
+    </button>
+
+    <button class="mode-tab" id="tabApi" role="tab" aria-selected="false" aria-controls="panelApi">
+      <div class="mode-tab-top">
+        <span class="mode-tab-label">Mode 2 — En ligne</span>
+        <span class="mode-tab-radio"></span>
+      </div>
+      <div class="mode-tab-title">Connexion directe à l'API Withings</div>
+      <div class="mode-tab-desc">OAuth 2.0 + endpoint <code>Measure&nbsp;Getmeas</code> pour récupérer tout l'historique.</div>
+    </button>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- PANEL MODE 1 — CSV -->
+  <!-- ================================================================ -->
+  <div class="panel active" id="panelCsv">
+
+    <section class="card">
+      <div class="card-header">
+        <h2><span class="step-num">1</span>Taille (pour le calcul de l'IMC)</h2>
+        <span class="card-sub">Donnée absente du CSV Withings natif</span>
+      </div>
+
+      <div class="notice notice-info">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div class="notice-body">
+          <div class="notice-title">Pourquoi ce champ ?</div>
+          Withings n'exporte jamais l'IMC dans le fichier <code style="background:var(--zinc-800);padding:1px 6px;border-radius:4px;font-family:var(--font-mono);font-size:11.5px;">weight.csv</code> natif — seuls poids, masse grasse, masse osseuse, masse musculaire et hydratation y figurent. L'IMC est donc recalculé ici à partir de votre taille (IMC = poids ÷ taille²) pour chaque mesure.
+        </div>
+      </div>
+
+      <div class="field-grid">
+        <div class="field">
+          <label for="heightCm">Taille (cm)</label>
+          <input type="text" id="heightCm" value="172" placeholder="ex : 172" inputmode="numeric">
+          <span class="field-hint">Utilisée pour calculer l'IMC de chaque mesure de poids.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2><span class="step-num">2</span>Déposer le fichier weight.csv</h2>
+        <span class="card-sub">Export Withings natif</span>
+      </div>
+
+      <div class="notice notice-info">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div class="notice-body">
+          <div class="notice-title">Où trouver ce fichier ?</div>
+          Compte Withings → Paramètres → <strong>Confidentialité &amp; Données</strong> → Télécharger vos données → sélectionnez l'historique <strong>Poids</strong>. Le fichier s'appelle généralement <code style="background:var(--zinc-800);padding:1px 6px;border-radius:4px;font-family:var(--font-mono);font-size:11.5px;">weight.csv</code>.
+        </div>
+      </div>
+
+      <div class="dropzone" id="dropzoneCsv" tabindex="0" role="button" aria-label="Déposer ou sélectionner le fichier weight.csv">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+        <div class="dropzone-title">Glissez-déposez votre fichier ici</div>
+        <div class="dropzone-sub">ou cliquez pour parcourir — format attendu : <code>.csv</code></div>
+        <input type="file" id="fileInputCsv" accept=".csv,text/csv" class="hidden">
+      </div>
+
+      <div id="csvFileChip"></div>
+    </section>
+
+    <!-- Zone résultats Mode 1 (générée dynamiquement, masquée par défaut) -->
+    <div id="csvResults"></div>
+
+  </div>
+
+
+  <!-- ================================================================ -->
+  <!-- PANEL MODE 2 — API OAuth -->
+  <!-- ================================================================ -->
+  <div class="panel" id="panelApi">
+
+    <section class="card">
+      <div class="card-header">
+        <h2><span class="step-num">1</span>Identifiants de l'application Withings</h2>
+        <span class="card-sub">developer.withingsapi.com</span>
+      </div>
+
+      <div class="notice notice-success">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>
+        <div class="notice-body">
+          <div class="notice-title">Échange OAuth automatisé via un relais sécurisé</div>
+          Withings n'autorise pas l'échange du code OAuth directement depuis le navigateur (le <strong>Client Secret</strong> ne doit jamais transiter côté client). Cette app utilise un petit relais (Cloudflare Worker) qui fait cet échange pour vous, en gardant le Client Secret chiffré côté serveur — <strong>aucune étape manuelle n'est nécessaire</strong> une fois le relais déployé.
+          <br><br>
+          <strong>Aucun proxy CORS public ne doit être utilisé pour contourner cela</strong> : votre Client Secret et votre access_token y transiteraient en clair chez un tiers que vous ne contrôlez pas. Le relais utilisé ici est déployé par vous, sur votre propre compte Cloudflare.
+          <br><br>
+          Si le relais n'est pas (encore) déployé ou momentanément indisponible, l'app bascule automatiquement sur un flux de secours manuel (commande <code style="background:var(--zinc-800);padding:1px 6px;border-radius:4px;font-family:var(--font-mono);font-size:11.5px;">curl</code> générée et copiée dans le presse-papiers) — vous ne serez donc jamais bloqué.
+          <details class="notice-details">
+            <summary>Déployer le relais (une seule fois, ~5 minutes, gratuit)</summary>
+            <pre id="proxySnippet"></pre>
+          </details>
+        </div>
+      </div>
+
+      <div class="field-grid three">
+        <div class="field">
+          <label for="withingsClientId">Client ID <span class="req">requis</span></label>
+          <input type="text" id="withingsClientId" placeholder="ex : a1b2c3d4e5f6...">
+        </div>
+        <div class="field">
+          <label for="withingsClientSecret">Client Secret <span class="req">requis</span></label>
+          <div class="input-with-toggle">
+            <input type="password" id="withingsClientSecret" placeholder="••••••••••••••••">
+            <button type="button" class="toggle-visibility" id="toggleSecret" aria-label="Afficher / masquer le secret">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="withingsRedirectUri">URL de redirection <span class="req">requis</span></label>
+          <input type="text" id="withingsRedirectUri" value="https://mathieubouysse-code.github.io/withings_to_garmin/" placeholder="https://votre-page.github.io/votre-repo/">
+        </div>
+      </div>
+      <p class="field-hint" style="margin-top:14px;">Ces identifiants restent uniquement dans votre navigateur (mémoire de session) — ils ne sont jamais transmis à un tiers autre que Withings et votre propre relais.</p>
+
+      <div class="connection-status" id="connectionStatus" style="margin-top:18px;">
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-text" id="statusText">Non connecté</span>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnConnectWithings">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          Se connecter à Withings
+        </button>
+        <button class="btn btn-ghost hidden" id="btnPasteCode">Coller le code reçu manuellement</button>
+      </div>
+    </section>
+
+    <section class="card" id="cardPeriod" style="opacity:0.45; pointer-events:none;">
+      <div class="card-header">
+        <h2><span class="step-num">2</span>Période &amp; récupération des mesures</h2>
+        <span class="card-sub">Endpoint Measure — Getmeas</span>
+      </div>
+
+      <div class="field-grid">
+        <div class="field">
+          <label for="dateFrom">Date de début</label>
+          <input type="date" id="dateFrom">
+        </div>
+        <div class="field">
+          <label for="dateTo">Date de fin</label>
+          <input type="date" id="dateTo">
+        </div>
+      </div>
+
+      <p class="field-hint" style="margin:14px 0;">Types de mesures interrogés automatiquement : <strong style="color:var(--zinc-300);">1</strong> Poids · <strong style="color:var(--zinc-300);">6</strong> Taux de graisse · <strong style="color:var(--zinc-300);">77</strong> Taux d'eau · <strong style="color:var(--zinc-300);">11</strong> IMC · <strong style="color:var(--zinc-300);">76</strong> Masse musculaire · <strong style="color:var(--zinc-300);">88</strong> Masse osseuse.</p>
+
+      <button class="btn btn-primary" id="btnFetchMeasures">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+        Récupérer les mesures
+      </button>
+    </section>
+
+    <!-- Zone résultats Mode 2 -->
+    <div id="apiResults"></div>
+
+  </div>
+
+  <footer class="app-footer">
+    <span>Traitement 100&nbsp;% local — aucune donnée envoyée à un serveur tiers (hors appels Withings explicitement initiés).</span>
+    <span>Format de sortie conforme FIT SDK · message <code>weight_scale</code> (global #30)</span>
+  </footer>
+
+</div>
+
+<script>
+/* ============================================================================
+   ENCODEUR BINAIRE FIT — implémentation conforme au FIT SDK Garmin (Flexible
+   and Interoperable Data Transfer Protocol), validée par parsing indépendant
+   (fitdecode) lors du développement de cette page.
+
+   Structure produite :
+     - File Header (14 bytes, avec CRC16 du header aux offsets 12-13)
+     - Message Définition file_id (global mesg #0)
+     - Message Donnée file_id
+     - Message Définition weight_scale (global mesg #30)
+     - N Messages Donnée weight_scale (un par mesure de pesée)
+     - CRC16 final (2 bytes) calculé sur header + tout le corps
+
+   Champs weight_scale utilisés (numéros officiels du FIT Profile) :
+     253 timestamp           uint32   (secondes depuis epoch FIT)
+     0   weight              uint16   scale x100  (kg)
+     1   percent_fat         uint16   scale x100  (%)
+     2   percent_hydration   uint16   scale x100  (%)
+     4   bone_mass           uint16   scale x100  (kg)
+     5   muscle_mass         uint16   scale x100  (kg)
+     13  bmi                 uint16   scale x10   (kg/m²)
+   Valeur 0xFFFF = "invalid" (champ absent) selon la spec FIT.
+   ============================================================================ */
+
+const FIT_UINT16_INVALID = 0xFFFF;
+
+// Table de CRC16 réglementaire du FIT SDK (polynôme Garmin, lookup 4 bits).
+const FIT_CRC_TABLE = [
+  0x0000, 0xCC01, 0xD801, 0x1400, 0xF001, 0x3C00, 0x2800, 0xE401,
+  0xA001, 0x6C00, 0x7800, 0xB401, 0x5000, 0x9C01, 0x8801, 0x4400
+];
+
+function fitCRC16(buffer, crc = 0) {
+  for (let i = 0; i < buffer.length; i++) {
+    const byte = buffer[i];
+    let tmp = FIT_CRC_TABLE[crc & 0xF];
+    crc = (crc >> 4) & 0x0FFF;
+    crc = crc ^ tmp ^ FIT_CRC_TABLE[byte & 0xF];
+
+    tmp = FIT_CRC_TABLE[crc & 0xF];
+    crc = (crc >> 4) & 0x0FFF;
+    crc = crc ^ tmp ^ FIT_CRC_TABLE[(byte >> 4) & 0xF];
+  }
+  return crc & 0xFFFF;
+}
+
+// L'epoch FIT démarre au 31/12/1989 00:00:00 UTC (et non l'epoch Unix).
+const FIT_EPOCH_MS = Date.UTC(1989, 11, 31, 0, 0, 0);
+function toFitTimestamp(jsDate) {
+  return Math.floor((jsDate.getTime() - FIT_EPOCH_MS) / 1000);
+}
+
+/** Petit writer binaire little-endian, mémoire uniquement (pas de dépendance externe). */
+class FitWriter {
+  constructor() { this.bytes = []; }
+  u8(v) { this.bytes.push(v & 0xFF); }
+  u16(v) { this.bytes.push(v & 0xFF, (v >> 8) & 0xFF); }
+  u32(v) { this.bytes.push(v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >> 24) & 0xFF); }
+  bytesArr(arr) { for (const b of arr) this.u8(b); }
+  toUint8Array() { return Uint8Array.from(this.bytes); }
+}
+
+function writeFileIdDefinition(w, localType) {
+  w.u8(0x40 | localType);       // record header : bit 6 = définition
+  w.u8(0);                       // reserved
+  w.u8(0);                       // architecture little-endian
+  w.u16(0);                      // global message number 0 = file_id
+  w.u8(4);                       // nombre de champs
+  w.u8(0); w.u8(1); w.u8(0x00);  // type            (enum,   1 byte)
+  w.u8(1); w.u8(2); w.u8(0x84);  // manufacturer    (uint16, 2 bytes)
+  w.u8(2); w.u8(2); w.u8(0x84);  // product         (uint16, 2 bytes)
+  w.u8(4); w.u8(4); w.u8(0x86);  // time_created    (uint32, 4 bytes)
+}
+
+function writeFileIdData(w, localType, timeCreated) {
+  w.u8(localType & 0x0F);
+  w.u8(9);            // 9 = "weight" file type dans le FIT Profile (fichier de balance)
+  w.u16(255);          // manufacturer générique (255 = développement)
+  w.u16(0);            // product
+  w.u32(timeCreated);
+}
+
+function writeWeightScaleDefinition(w, localType) {
+  w.u8(0x40 | localType);
+  w.u8(0);
+  w.u8(0);
+  w.u16(30);            // global message number 30 = weight_scale
+  w.u8(7);              // nombre de champs
+  w.u8(253); w.u8(4); w.u8(0x86); // timestamp           uint32
+  w.u8(0);   w.u8(2); w.u8(0x84); // weight              uint16  x100 kg
+  w.u8(1);   w.u8(2); w.u8(0x84); // percent_fat         uint16  x100 %
+  w.u8(2);   w.u8(2); w.u8(0x84); // percent_hydration   uint16  x100 %
+  w.u8(4);   w.u8(2); w.u8(0x84); // bone_mass           uint16  x100 kg
+  w.u8(5);   w.u8(2); w.u8(0x84); // muscle_mass         uint16  x100 kg
+  w.u8(13);  w.u8(2); w.u8(0x84); // bmi                 uint16  x10  kg/m²
+}
+
+function writeWeightScaleData(w, localType, rec) {
+  w.u8(localType & 0x0F);
+  w.u32(rec.timestamp);
+  w.u16(rec.weight  != null ? Math.round(rec.weight  * 100) : FIT_UINT16_INVALID);
+  w.u16(rec.fat     != null ? Math.round(rec.fat     * 100) : FIT_UINT16_INVALID);
+  w.u16(rec.water   != null ? Math.round(rec.water   * 100) : FIT_UINT16_INVALID);
+  w.u16(rec.bone    != null ? Math.round(rec.bone    * 100) : FIT_UINT16_INVALID);
+  w.u16(rec.muscle  != null ? Math.round(rec.muscle  * 100) : FIT_UINT16_INVALID);
+  w.u16(rec.bmi     != null ? Math.round(rec.bmi     * 10)  : FIT_UINT16_INVALID);
+}
+
+/**
+ * Construit le fichier .FIT binaire complet à partir d'une liste d'enregistrements.
+ * @param {Array<{timestamp:number, weight:?number, fat:?number, water:?number, bone:?number, muscle:?number, bmi:?number}>} records
+ * @returns {Uint8Array}
+ */
+function buildFitFile(records) {
+  // Tri chronologique croissant : Garmin Connect attend un ordre temporel cohérent.
+  const sorted = [...records].sort((a, b) => a.timestamp - b.timestamp);
+
+  const body = new FitWriter();
+  const now = toFitTimestamp(new Date());
+
+  writeFileIdDefinition(body, 0);
+  writeFileIdData(body, 0, now);
+
+  writeWeightScaleDefinition(body, 1);
+  for (const r of sorted) {
+    writeWeightScaleData(body, 1, r);
+  }
+
+  const bodyBytes = body.toUint8Array();
+
+  // ---- Header (14 bytes : 12 utiles + 2 bytes de CRC du header) ----
+  const header = new FitWriter();
+  header.u8(14);                              // taille du header
+  header.u8(0x20);                             // version de protocole FIT 2.0
+  header.u16(2167);                            // version de profil (informative)
+  header.u32(bodyBytes.length);                // taille des données (hors header/CRC final)
+  header.bytesArr([0x2E, 0x46, 0x49, 0x54]);   // signature ASCII ".FIT"
+  header.u16(0);                               // placeholder, remplacé ci-dessous
+
+  let headerBytes = Uint8Array.from(header.toUint8Array());
+  const headerCRC = fitCRC16(headerBytes.slice(0, 12));
+  headerBytes[12] = headerCRC & 0xFF;
+  headerBytes[13] = (headerCRC >> 8) & 0xFF;
+
+  // ---- CRC final sur header complet + corps ----
+  const fileCRC = fitCRC16(bodyBytes, fitCRC16(headerBytes));
+  const crcBytes = Uint8Array.of(fileCRC & 0xFF, (fileCRC >> 8) & 0xFF);
+
+  const total = new Uint8Array(headerBytes.length + bodyBytes.length + crcBytes.length);
+  total.set(headerBytes, 0);
+  total.set(bodyBytes, headerBytes.length);
+  total.set(crcBytes, headerBytes.length + bodyBytes.length);
+  return total;
+}
+
+
+/* ============================================================================
+   PARSING CSV WITHINGS
+   Le fichier "weight.csv" exporté par Withings contient typiquement les
+   colonnes : Date, Heure (parfois fusionnées), Poids (kg), Graisse (%),
+   Masse Osseuse (kg), Masse Musculaire (kg), Masse Hydrique (%), IMC, ...
+   Les libellés exacts varient selon la langue du compte et les versions de
+   l'export Withings ; le parseur ci-dessous reconnaît plusieurs variantes
+   (FR / EN) par correspondance souple sur les en-têtes de colonnes.
+   ============================================================================ */
+
+// Dictionnaire de correspondance "motif dans l'en-tête" -> "champ interne".
+// On teste chaque en-tête de colonne contre ces motifs (insensible à la casse,
+// recherche de sous-chaîne) — assez tolérant pour absorber les variations
+// d'export Withings (FR/EN, avec/sans unité entre parenthèses).
+// IMPORTANT : dans l'export natif Withings, "Gras" et "Hydratation" sont
+// exprimés en KILOGRAMMES (ex. en-tête "Gras (kg)"), pas en pourcentage —
+// contrairement à ce qu'affiche l'app mobile Withings. On détecte donc aussi
+// l'unité déclarée entre parenthèses dans l'en-tête pour convertir correctement.
+const CSV_COLUMN_PATTERNS = [
+  { field: 'date',    patterns: ['date'] },
+  { field: 'weight',  patterns: ['poids', 'weight'] },
+  { field: 'fat',     patterns: ['gras', 'masse grasse', 'graisse', 'fat mass', 'fat ratio', 'body fat', 'fat'] },
+  { field: 'water',   patterns: ['hydratation', 'masse hydrique', "taux d'eau", 'hydration', 'water'] },
+  { field: 'muscle',  patterns: ['masse musculaire', 'muscle mass', 'muscle'] },
+  { field: 'bone',    patterns: ['masse osseuse', 'bone mass', 'bone'] },
+  { field: 'bmi',     patterns: ['imc', 'bmi'] },
+];
+
+/** Extrait l'unité déclarée entre parenthèses dans un en-tête, ex. "Gras (kg)" -> "kg". */
+function detectColumnUnit(headerText) {
+  const match = headerText.match(/\(([^)]+)\)/);
+  if (!match) return null;
+  const unit = match[1].trim().toLowerCase();
+  if (unit === 'kg' || unit === 'lb') return 'kg'; // lb sera convertie en kg ailleurs si besoin
+  if (unit === '%') return 'percent';
+  return null;
+}
+
+function detectDelimiter(headerLine) {
+  const candidates = [',', ';', '\t'];
+  let best = ',', bestCount = -1;
+  for (const d of candidates) {
+    const count = headerLine.split(d).length;
+    if (count > bestCount) { bestCount = count; best = d; }
+  }
+  return best;
+}
+
+function mapHeaderToFields(headerCells) {
+  const mapping = {};  // index colonne -> field interne
+  const units = {};    // field interne -> 'kg' | 'percent' | null (unité détectée dans l'en-tête)
+  headerCells.forEach((raw, idx) => {
+    const h = raw.trim().toLowerCase().replace(/"/g, '');
+    for (const { field, patterns } of CSV_COLUMN_PATTERNS) {
+      if (mapping[field] !== undefined) continue; // déjà mappé (1ère correspondance gagne)
+      if (patterns.some(p => h.includes(p))) {
+        mapping[field] = idx;
+        units[field] = detectColumnUnit(h);
+        break;
+      }
+    }
+  });
+  return { mapping, units };
+}
+
+function parseNumber(str) {
+  if (str == null) return null;
+  const t = String(str).trim().replace(/"/g, '');
+  if (t === '' || t.toLowerCase() === 'nan' || t === '-') return null;
+  // Gère à la fois "78.4" et "78,4" (export FR)
+  const normalized = t.replace(',', '.');
+  const n = parseFloat(normalized);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseWithingsDate(str) {
+  const t = str.trim().replace(/"/g, '');
+  // Formats usuels : "2026-01-10", "2026-01-10 08:00:00", "10/01/2026", timestamp unix
+  if (/^\d{9,13}$/.test(t)) {
+    const num = parseInt(t, 10);
+    return new Date(num < 1e12 ? num * 1000 : num); // secondes vs millisecondes
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) {
+    const d = new Date(t.replace(' ', 'T') + (t.includes('T') || t.includes(' ') ? '' : 'T08:00:00'));
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(t)) {
+    const [datePart, timePart] = t.split(' ');
+    const [dd, mm, yyyy] = datePart.split('/');
+    const d = new Date(`${yyyy}-${mm}-${dd}T${timePart || '08:00:00'}`);
+    if (!isNaN(d.getTime())) return d;
+  }
+  const fallback = new Date(t);
+  return isNaN(fallback.getTime()) ? null : fallback;
+}
+
+/**
+ * Parse le contenu texte brut d'un weight.csv Withings.
+ * @param {string} text - contenu brut du fichier CSV
+ * @param {?number} heightCm - taille en cm fournie par l'utilisateur, pour calculer le BMI
+ *        (Withings n'exporte JAMAIS l'IMC dans le weight.csv natif — voir doc support Withings).
+ *        Si null, le champ bmi restera vide (sauf si une colonne IMC existe déjà, cas rare).
+ * @returns {{records: Array, mapping: Object, totalRows: number, skipped: number, fatUnit: string|null, waterUnit: string|null}}
+ */
+function parseWithingsCsv(text, heightCm = null) {
+  const lines = text.split(/\r\n|\n|\r/).filter(l => l.trim().length > 0);
+  if (lines.length < 2) {
+    throw new Error('Le fichier semble vide ou ne contient pas de lignes de données.');
+  }
+
+  const delimiter = detectDelimiter(lines[0]);
+  const headerCells = lines[0].split(delimiter);
+  const { mapping, units } = mapHeaderToFields(headerCells);
+
+  if (mapping.date === undefined || mapping.weight === undefined) {
+    throw new Error('Colonnes "Date" et/ou "Poids" introuvables dans l\'en-tête du CSV. Vérifiez qu\'il s\'agit bien d\'un export Withings natif.');
+  }
+
+  // heightM au carré, précalculé une fois si une taille a été fournie.
+  const heightM2 = heightCm ? Math.pow(heightCm / 100, 2) : null;
+
+  const records = [];
+  let skipped = 0;
+
+  for (let i = 1; i < lines.length; i++) {
+    const cells = lines[i].split(delimiter);
+    const dateStr = cells[mapping.date];
+    const date = dateStr ? parseWithingsDate(dateStr) : null;
+    const weight = mapping.weight !== undefined ? parseNumber(cells[mapping.weight]) : null;
+
+    if (!date || weight == null) { skipped++; continue; }
+
+    // --- Gras et Hydratation : Withings les exporte en kg dans le CSV natif
+    // ("Gras (kg)", "Hydratation (kg)"), alors que le champ FIT standard
+    // (percent_fat / percent_hydration) attend un POURCENTAGE du poids total.
+    // On convertit donc kg -> % quand l'en-tête indique "kg" ; si l'en-tête
+    // indique déjà "%" (autres variantes d'export), on garde la valeur telle quelle.
+    let fatRaw = mapping.fat !== undefined ? parseNumber(cells[mapping.fat]) : null;
+    if (fatRaw != null && units.fat === 'kg' && weight > 0) {
+      fatRaw = (fatRaw / weight) * 100;
+    }
+
+    let waterRaw = mapping.water !== undefined ? parseNumber(cells[mapping.water]) : null;
+    if (waterRaw != null && units.water === 'kg' && weight > 0) {
+      waterRaw = (waterRaw / weight) * 100;
+    }
+
+    // --- BMI : absent du CSV Withings natif dans l'immense majorité des cas.
+    // On le calcule nous-mêmes (poids / taille²) si une taille a été fournie ;
+    // sinon on respecte une éventuelle colonne IMC déjà présente dans le fichier.
+    let bmi = mapping.bmi !== undefined ? parseNumber(cells[mapping.bmi]) : null;
+    if (bmi == null && heightM2) {
+      bmi = weight / heightM2;
+    }
+
+    records.push({
+      timestamp: toFitTimestamp(date),
+      dateLabel: date,
+      weight,
+      fat:    fatRaw,
+      water:  waterRaw,
+      muscle: mapping.muscle !== undefined ? parseNumber(cells[mapping.muscle]) : null,
+      bone:   mapping.bone   !== undefined ? parseNumber(cells[mapping.bone])   : null,
+      bmi,
+    });
+  }
+
+  return { records, mapping, units, totalRows: lines.length - 1, skipped };
+}
+
+
+/* ============================================================================
+   RENDU UI — métriques détectées, tableau de prévisualisation, statistiques,
+   téléchargement du fichier .FIT généré.
+   ============================================================================ */
+
+const METRIC_DEFS = [
+  { key: 'weight', label: 'Poids',          icon: 'M6 3h12l4 6-10 12L2 9Z' },
+  { key: 'bmi',    label: 'IMC',            icon: 'M3 3v18h18M7 14l3-3 3 3 5-5' },
+  { key: 'fat',    label: 'Masse Grasse',   icon: 'M12 21s-7-4.35-7-10a7 7 0 0 1 14 0c0 5.65-7 10-7 10Z' },
+  { key: 'water',  label: "Taux d'eau",     icon: 'M12 2s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11Z' },
+  { key: 'muscle', label: 'Masse Musculaire', icon: 'M6 4h2l1 3h6l1-3h2l-2 6 2 6h-2l-1-3H9l-1 3H6l2-6Z' },
+  { key: 'bone',   label: 'Masse Osseuse',  icon: 'M7 10a2 2 0 1 1 3.5 1.3L17 18a2 2 0 1 1-3 3l-6.7-6.5A2 2 0 0 1 7 10Z' },
+];
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function formatDateLabel(date) {
+  return date.toLocaleDateString('fr-FR', { year: 'numeric', month: '2-digit', day: '2-digit' }) +
+         ' ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function countNonNull(records, field) {
+  return records.filter(r => r[field] != null).length;
+}
+
+function renderMetricsGrid(records) {
+  const items = METRIC_DEFS.map(({ key, label, icon }) => {
+    const count = countNonNull(records, key);
+    const found = count > 0;
+    return `
+      <div class="metric-pill ${found ? 'found' : 'missing'}">
+        <div class="metric-pill-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="${icon}"/></svg>
+        </div>
+        <div class="metric-pill-label">${label}</div>
+        <div class="metric-pill-count">${found ? count + ' valeurs' : 'absent'}</div>
+      </div>`;
+  }).join('');
+  return `<div class="metrics-grid">${items}</div>`;
+}
+
+function renderStatsRow(records) {
+  const weights = records.map(r => r.weight).filter(v => v != null);
+  const minW = weights.length ? Math.min(...weights).toFixed(1) : '—';
+  const maxW = weights.length ? Math.max(...weights).toFixed(1) : '—';
+  const first = records.length ? formatDateLabel(records[0].dateLabel) : '—';
+  const last = records.length ? formatDateLabel(records[records.length - 1].dateLabel) : '—';
+  return `
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-value">${records.length}</div><div class="stat-label">Mesures détectées</div></div>
+      <div class="stat-box"><div class="stat-value">${minW} – ${maxW}</div><div class="stat-label">Plage de poids (kg)</div></div>
+      <div class="stat-box"><div class="stat-value" style="font-size:13px;">${first}</div><div class="stat-label">Première mesure</div></div>
+      <div class="stat-box"><div class="stat-value" style="font-size:13px;">${last}</div><div class="stat-label">Dernière mesure</div></div>
+    </div>`;
+}
+
+function renderPreviewTable(records) {
+  const rows = records.slice(0, 200).map(r => `
+    <tr>
+      <td class="cell-date">${formatDateLabel(r.dateLabel)}</td>
+      <td class="cell-weight">${r.weight != null ? r.weight.toFixed(1) + ' kg' : '<span class="cell-missing">—</span>'}</td>
+      <td>${r.bmi    != null ? r.bmi.toFixed(1)    : '<span class="cell-missing">—</span>'}</td>
+      <td>${r.fat    != null ? r.fat.toFixed(1) + ' %' : '<span class="cell-missing">—</span>'}</td>
+      <td>${r.muscle != null ? r.muscle.toFixed(1) + ' kg' : '<span class="cell-missing">—</span>'}</td>
+      <td>${r.bone   != null ? r.bone.toFixed(2) + ' kg' : '<span class="cell-missing">—</span>'}</td>
+      <td>${r.water  != null ? r.water.toFixed(1) + ' %' : '<span class="cell-missing">—</span>'}</td>
+    </tr>`).join('');
+
+  return `
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="preview-table">
+          <thead>
+            <tr>
+              <th>Date / Heure</th><th>Poids</th><th>IMC</th><th>Masse Grasse</th><th>Masse Musculaire</th><th>Masse Osseuse</th><th>Taux d'eau</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="table-footer">
+        <span>${records.length} mesure(s) au total${records.length > 200 ? ' — aperçu limité aux 200 premières lignes' : ''}</span>
+        <span>Triées chronologiquement avant export</span>
+      </div>
+    </div>`;
+}
+
+function downloadFitFile(bytes, filename) {
+  const blob = new Blob([bytes], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function renderResultsBlock(containerEl, records, sourceLabel) {
+  if (records.length === 0) {
+    containerEl.innerHTML = `
+      <div class="notice notice-error">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+        <div class="notice-body"><div class="notice-title">Aucune mesure exploitable</div>Aucune ligne avec une date et un poids valides n'a été trouvée dans ${escapeHtml(sourceLabel)}.</div>
+      </div>`;
+    return;
+  }
+
+  containerEl.innerHTML = `
+    <section class="card">
+      <div class="card-header">
+        <h2><span class="step-num">2</span>Vérification des métriques extraites</h2>
+        <span class="card-sub">${escapeHtml(sourceLabel)}</span>
+      </div>
+      ${renderStatsRow(records)}
+      ${renderMetricsGrid(records)}
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2><span class="step-num">3</span>Prévisualisation avant export</h2>
+        <span class="card-sub">${Math.min(records.length, 200)} / ${records.length} lignes affichées</span>
+      </div>
+      ${renderPreviewTable(records)}
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2><span class="step-num">4</span>Générer le fichier .FIT</h2>
+        <span class="card-sub">Compatible import direct Garmin Connect</span>
+      </div>
+      <div class="notice notice-success" id="readyNotice">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>
+        <div class="notice-body"><div class="notice-title">Données prêtes</div>${records.length} mesures vont être encodées dans un unique fichier <code style="background:var(--zinc-800);padding:1px 6px;border-radius:4px;font-family:var(--font-mono);font-size:11.5px;">.fit</code>, message <code style="background:var(--zinc-800);padding:1px 6px;border-radius:4px;font-family:var(--font-mono);font-size:11.5px;">weight_scale</code>.</div>
+      </div>
+      <button class="btn btn-primary" id="btnGenerateFit-${containerEl.id}">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+        Générer et télécharger le fichier .FIT
+      </button>
+    </section>
+  `;
+
+  document.getElementById(`btnGenerateFit-${containerEl.id}`).addEventListener('click', () => {
+    try {
+      const bytes = buildFitFile(records);
+      const filename = `withings_weight_${new Date().toISOString().slice(0,10)}.fit`;
+      downloadFitFile(bytes, filename);
+    } catch (err) {
+      console.error(err);
+      alert('Erreur lors de la génération du fichier .FIT : ' + err.message);
+    }
+  });
+}
+
+
+/* ============================================================================
+   MODE SWITCH (onglets)
+   ============================================================================ */
+
+const tabCsv = document.getElementById('tabCsv');
+const tabApi = document.getElementById('tabApi');
+const panelCsv = document.getElementById('panelCsv');
+const panelApi = document.getElementById('panelApi');
+
+function activateTab(which) {
+  const csvActive = which === 'csv';
+  tabCsv.classList.toggle('active', csvActive);
+  tabApi.classList.toggle('active', !csvActive);
+  tabCsv.setAttribute('aria-selected', String(csvActive));
+  tabApi.setAttribute('aria-selected', String(!csvActive));
+  panelCsv.classList.toggle('active', csvActive);
+  panelApi.classList.toggle('active', !csvActive);
+}
+tabCsv.addEventListener('click', () => activateTab('csv'));
+tabApi.addEventListener('click', () => activateTab('api'));
+
+
+/* ============================================================================
+   MODE 1 — GESTION DU DROPZONE CSV
+   ============================================================================ */
+
+const dropzoneCsv = document.getElementById('dropzoneCsv');
+const fileInputCsv = document.getElementById('fileInputCsv');
+const csvFileChip = document.getElementById('csvFileChip');
+const csvResults = document.getElementById('csvResults');
+const heightCmInput = document.getElementById('heightCm');
+
+let lastCsvText = null;
+let lastCsvFilename = null;
+
+function getHeightCm() {
+  const v = parseFloat(String(heightCmInput.value).replace(',', '.'));
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
+function runCsvParsing(text, filename) {
+  try {
+    const { records, totalRows, skipped } = parseWithingsCsv(text, getHeightCm());
+    if (skipped > 0) {
+      console.warn(`${skipped} ligne(s) ignorée(s) sur ${totalRows} (date ou poids manquant/invalide).`);
+    }
+    renderResultsBlock(csvResults, records, filename);
+  } catch (err) {
+    csvResults.innerHTML = `
+      <div class="notice notice-error">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+        <div class="notice-body"><div class="notice-title">Erreur de lecture du CSV</div>${escapeHtml(err.message)}</div>
+      </div>`;
+  }
+}
+
+function handleCsvFile(file) {
+  if (!file) return;
+  csvFileChip.innerHTML = `
+    <div class="file-chip">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+      ${escapeHtml(file.name)} — ${(file.size / 1024).toFixed(1)} Ko
+    </div>`;
+  dropzoneCsv.classList.add('has-file');
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    lastCsvText = e.target.result;
+    lastCsvFilename = file.name;
+    runCsvParsing(lastCsvText, lastCsvFilename);
+  };
+  reader.onerror = () => {
+    csvResults.innerHTML = `<div class="notice notice-error">Impossible de lire le fichier sélectionné.</div>`;
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+// Si l'utilisateur modifie la taille APRÈS avoir déjà importé un fichier,
+// on recalcule automatiquement l'IMC sans qu'il ait besoin de redéposer le CSV.
+heightCmInput.addEventListener('input', () => {
+  if (lastCsvText) runCsvParsing(lastCsvText, lastCsvFilename);
+});
+
+dropzoneCsv.addEventListener('click', () => fileInputCsv.click());
+dropzoneCsv.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputCsv.click(); }
+});
+fileInputCsv.addEventListener('change', (e) => handleCsvFile(e.target.files[0]));
+
+
+['dragenter', 'dragover'].forEach(evt =>
+  dropzoneCsv.addEventListener(evt, (e) => { e.preventDefault(); dropzoneCsv.classList.add('dragover'); })
+);
+['dragleave', 'drop'].forEach(evt =>
+  dropzoneCsv.addEventListener(evt, (e) => { e.preventDefault(); dropzoneCsv.classList.remove('dragover'); })
+);
+dropzoneCsv.addEventListener('drop', (e) => {
+  const file = e.dataTransfer.files[0];
+  if (file) handleCsvFile(file);
+});
+
+
+/* ============================================================================
+   MODE 2 — OAUTH 2.0 WITHINGS + ENDPOINT GETMEAS
+   ============================================================================ */
+
+const WITHINGS_AUTH_URL = 'https://account.withings.com/oauth2_user/authorize2';
+// Types de mesures Withings requis (cf. doc "Measure - Getmeas") :
+//  1=Poids, 6=Taux de graisse, 11=IMC, 76=Masse musculaire, 77=Taux d'eau, 88=Masse osseuse
+const WITHINGS_MEASURE_TYPES = [1, 6, 11, 76, 77, 88];
+
+// URL du relais OAuth (Cloudflare Worker) qui effectue l'échange code -> token
+// à votre place, en gardant le Client Secret côté serveur. Remplacez cette
+// valeur par l'URL affichée après `npx wrangler deploy` (voir cf-worker/DEPLOY.md).
+// Si laissée vide ou inaccessible, l'app retombe automatiquement sur le flux
+// manuel (commande curl à copier-coller) — aucune fonctionnalité n'est perdue.
+const OAUTH_RELAY_URL = 'https://withings-oauth-relay.VOTRE-SOUS-DOMAINE.workers.dev';
+
+const clientIdInput = document.getElementById('withingsClientId');
+const clientSecretInput = document.getElementById('withingsClientSecret');
+const redirectUriInput = document.getElementById('withingsRedirectUri');
+const toggleSecretBtn = document.getElementById('toggleSecret');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const btnConnectWithings = document.getElementById('btnConnectWithings');
+const btnPasteCode = document.getElementById('btnPasteCode');
+const cardPeriod = document.getElementById('cardPeriod');
+const btnFetchMeasures = document.getElementById('btnFetchMeasures');
+const apiResults = document.getElementById('apiResults');
+const dateFromInput = document.getElementById('dateFrom');
+const dateToInput = document.getElementById('dateTo');
+
+// Pré-remplissage de la période : 5 dernières années par défaut.
+(function initDefaultPeriod() {
+  const today = new Date();
+  const fiveYearsAgo = new Date(today);
+  fiveYearsAgo.setFullYear(today.getFullYear() - 5);
+  dateToInput.value = today.toISOString().slice(0, 10);
+  dateFromInput.value = fiveYearsAgo.toISOString().slice(0, 10);
+})();
+
+toggleSecretBtn.addEventListener('click', () => {
+  clientSecretInput.type = clientSecretInput.type === 'password' ? 'text' : 'password';
+});
+
+// Instructions de déploiement du relais Cloudflare Worker — affiché dans le
+// <details> de l'encart. Le code du Worker lui-même vit dans le dossier
+// cf-worker/ fourni séparément (src/index.js + wrangler.toml + DEPLOY.md) ;
+// il n'est jamais exécuté par cette page, qui reste 100% statique.
+document.getElementById('proxySnippet').textContent =
+`# Déploiement du relais (dossier cf-worker/ fourni séparément), une seule fois :
+
+cd cf-worker
+npm install
+npx wrangler login                          # ouvre une page pour autoriser l'accès
+
+npx wrangler secret put WITHINGS_CLIENT_ID
+# collez votre Client ID Withings quand demandé
+
+npx wrangler secret put WITHINGS_CLIENT_SECRET
+# collez votre Client Secret Withings quand demandé
+
+npx wrangler deploy
+# Wrangler affiche une URL du type :
+#   https://withings-oauth-relay.<votre-sous-domaine>.workers.dev
+
+# Reportez cette URL dans la constante OAUTH_RELAY_URL en haut du script
+# de cette page (index.html), puis redéployez la PWA sur GitHub Pages.
+# Instructions complètes : voir cf-worker/DEPLOY.md`;
+
+function setConnectionStatus(state, message) {
+  statusDot.className = 'status-dot' + (state === 'connected' ? ' connected' : state === 'error' ? ' error' : '');
+  statusText.textContent = message;
+}
+
+function buildAuthUrl() {
+  const clientId = clientIdInput.value.trim();
+  const redirectUri = redirectUriInput.value.trim();
+  if (!clientId || !redirectUri) return null;
+
+  const state = Math.random().toString(36).slice(2);
+  sessionStorage.setItem('withings_oauth_state', state);
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    scope: 'user.metrics',
+    state,
+  });
+  return `${WITHINGS_AUTH_URL}?${params.toString()}`;
+}
+
+btnConnectWithings.addEventListener('click', () => {
+  const clientId = clientIdInput.value.trim();
+  const clientSecret = clientSecretInput.value.trim();
+  const redirectUri = redirectUriInput.value.trim();
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    setConnectionStatus('error', 'Veuillez renseigner Client ID, Client Secret et URL de redirection.');
+    return;
+  }
+
+  // Les identifiants restent en mémoire de session (jamais persistés en localStorage).
+  sessionStorage.setItem('withings_client_id', clientId);
+  sessionStorage.setItem('withings_redirect_uri', redirectUri);
+
+  const url = buildAuthUrl();
+  if (!url) {
+    setConnectionStatus('error', "Impossible de construire l'URL d'autorisation.");
+    return;
+  }
+  setConnectionStatus(null, 'Redirection vers Withings en cours…');
+  // Redirection directe plutôt qu'un nouvel onglet : plus fiable sur mobile
+  // (Chrome Android bloque parfois window.open() hors interaction directe, et
+  // une redirection pleine page est le comportement standard du flux OAuth2).
+  // sessionStorage survit à cette navigation puisqu'on reste sur la même origine.
+  window.location.href = url;
+});
+
+/**
+ * Tente l'échange code -> access_token via le relais Cloudflare Worker.
+ * Retourne { success: true, token } en cas de succès, ou { success: false }
+ * si le relais n'est pas configuré / indisponible (l'appelant doit alors
+ * proposer le flux manuel de repli).
+ */
+async function tryExchangeViaRelay(code, redirectUri) {
+  if (!OAUTH_RELAY_URL || OAUTH_RELAY_URL.includes('VOTRE-SOUS-DOMAINE')) {
+    // Relais non configuré (valeur par défaut laissée telle quelle) — on ne
+    // tente même pas l'appel, pour éviter une erreur réseau inutile.
+    return { success: false, reason: 'relay_not_configured' };
+  }
+  try {
+    const resp = await fetch(`${OAUTH_RELAY_URL}/exchange`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, redirect_uri: redirectUri }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.access_token) {
+      console.warn('Échange via relais échoué :', data);
+      return { success: false, reason: data.error || 'unknown_error', detail: data };
+    }
+    return { success: true, token: data.access_token, refreshToken: data.refresh_token, expiresIn: data.expires_in };
+  } catch (err) {
+    console.warn('Relais OAuth inaccessible :', err);
+    return { success: false, reason: 'network_error' };
+  }
+}
+
+/** Flux de repli manuel (commande curl) — utilisé si le relais échoue ou n'est pas configuré. */
+function fallbackManualCurlFlow(cleanCode) {
+  const clientId = clientIdInput.value.trim();
+  const clientSecret = clientSecretInput.value.trim();
+  const redirectUri = redirectUriInput.value.trim();
+
+  const curlCmd =
+`curl -X POST https://wbsapi.withings.net/v2/oauth2 \\
+  -d "action=requesttoken" \\
+  -d "grant_type=authorization_code" \\
+  -d "client_id=${clientId}" \\
+  -d "client_secret=${clientSecret}" \\
+  -d "code=${cleanCode}" \\
+  -d "redirect_uri=${redirectUri}"`;
+
+  console.log('--- Commande curl à exécuter dans un terminal (CMD/PowerShell/Terminal) ---\n' + curlCmd);
+
+  setConnectionStatus(
+    null,
+    `Relais OAuth non disponible — flux de secours manuel activé. Code reçu (${cleanCode.slice(0, 8)}…). ` +
+    `Ouvrez un terminal et exécutez la commande curl copiée dans votre presse-papiers. ` +
+    `La réponse JSON contient "access_token" : copiez sa valeur.`
+  );
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(curlCmd).catch(() => {
+      console.warn('Copie presse-papiers refusée — copiez la commande manuellement depuis la console (F12).');
+    });
+  }
+
+  alert(
+    "Le relais OAuth automatique n'est pas disponible (non configuré ou hors ligne).\n" +
+    "Bascule sur le flux manuel :\n\n" +
+    "Commande curl générée et copiée dans votre presse-papiers !\n\n" +
+    "1) Ouvrez un terminal (CMD, PowerShell ou Terminal Mac/Linux)\n" +
+    "2) Collez la commande (Ctrl+V ou Cmd+V) et appuyez sur Entrée\n" +
+    "3) Dans la réponse JSON, copiez la valeur du champ \"access_token\"\n" +
+    "4) Revenez ici et collez ce token dans la prochaine fenêtre qui va s'ouvrir.\n\n" +
+    "(La commande est aussi visible dans la console du navigateur — touche F12 — si la copie automatique a échoué.)"
+  );
+
+  const manualToken = prompt(
+    "Collez ici la valeur d'access_token obtenue dans la réponse JSON de la commande curl :"
+  );
+  if (manualToken && manualToken.trim()) {
+    sessionStorage.setItem('withings_access_token', manualToken.trim());
+    setConnectionStatus('connected', 'Connecté — access_token enregistré pour cette session.');
+    cardPeriod.style.opacity = '1';
+    cardPeriod.style.pointerEvents = 'auto';
+  }
+}
+
+btnPasteCode.addEventListener('click', async () => {
+  // Si l'utilisateur vient d'être redirigé depuis Withings vers cette page
+  // (cas normal en PWA/GitHub Pages), le code a déjà été capturé automatiquement
+  // par detectOAuthCallback() — on évite de le redemander inutilement.
+  const pendingCode = sessionStorage.getItem('withings_pending_code');
+  const code = pendingCode || prompt(
+    "Collez ici le paramètre 'code' présent dans l'URL de redirection après votre " +
+    "autorisation Withings (ex: ...?code=XXXX&state=...) :"
+  );
+  if (!code) return;
+  const cleanCode = code.includes('code=')
+    ? new URLSearchParams(code.split('?')[1] || code).get('code')
+    : code.trim();
+  sessionStorage.removeItem('withings_pending_code'); // usage unique (le code OAuth n'est valable qu'une fois)
+
+  const redirectUri = redirectUriInput.value.trim();
+
+  setConnectionStatus(null, 'Échange du code en cours via le relais sécurisé…');
+  const result = await tryExchangeViaRelay(cleanCode, redirectUri);
+
+  if (result.success) {
+    sessionStorage.setItem('withings_access_token', result.token);
+    if (result.refreshToken) sessionStorage.setItem('withings_refresh_token', result.refreshToken);
+    setConnectionStatus('connected', 'Connecté automatiquement via le relais OAuth — aucune étape manuelle nécessaire.');
+    cardPeriod.style.opacity = '1';
+    cardPeriod.style.pointerEvents = 'auto';
+    return;
+  }
+
+  // Le relais n'est pas configuré ou a échoué : on retombe sur le flux manuel,
+  // qui reste toujours disponible comme garantie de fonctionnement.
+  fallbackManualCurlFlow(cleanCode);
+});
+
+/**
+ * Appel réel à l'endpoint Withings "Measure - Getmeas".
+ * NOTE HONNÊTE : cet appel échouera directement depuis le navigateur si l'API
+ * Withings ne renvoie pas d'en-têtes CORS pour votre domaine — dans ce cas,
+ * faites transiter cette requête via votre relais serveur (voir exemple fourni).
+ */
+async function fetchWithingsMeasures(accessToken, startDate, endDate) {
+  const startTs = Math.floor(new Date(startDate).getTime() / 1000);
+  const endTs = Math.floor(new Date(endDate + 'T23:59:59').getTime() / 1000);
+
+  const body = new URLSearchParams({
+    action: 'getmeas',
+    meastypes: WITHINGS_MEASURE_TYPES.join(','),
+    category: '1', // 1 = mesures réelles (hors objectifs)
+    startdate: String(startTs),
+    enddate: String(endTs),
+  });
+
+  const resp = await fetch('https://wbsapi.withings.net/measure', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + accessToken,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+
+  if (!resp.ok) {
+    throw new Error(`Réponse HTTP ${resp.status} — l'appel direct depuis le navigateur est probablement bloqué par CORS. Utilisez le relais serveur.`);
+  }
+  const json = await resp.json();
+  if (json.status !== 0) {
+    throw new Error(`Erreur API Withings (status ${json.status}) — ${json.error || 'voir documentation Getmeas'}.`);
+  }
+  return json.body.measuregrps || [];
+}
+
+// Mapping des types de mesure Withings vers les champs internes utilisés par l'encodeur FIT.
+const WITHINGS_TYPE_TO_FIELD = { 1: 'weight', 6: 'fat', 11: 'bmi', 76: 'muscle', 77: 'water', 88: 'bone' };
+
+/** Convertit la réponse brute Getmeas (measuregrps) en enregistrements internes. */
+function convertMeasureGroupsToRecords(measuregrps) {
+  return measuregrps.map(grp => {
+    const rec = { timestamp: toFitTimestamp(new Date(grp.date * 1000)), dateLabel: new Date(grp.date * 1000) };
+    METRIC_DEFS.forEach(m => { rec[m.key] = null; });
+    for (const measure of grp.measures) {
+      const field = WITHINGS_TYPE_TO_FIELD[measure.type];
+      if (field) {
+        rec[field] = measure.value * Math.pow(10, measure.unit);
+      }
+    }
+    return rec;
+  }).filter(r => r.weight != null);
+}
+
+btnFetchMeasures.addEventListener('click', async () => {
+  const accessToken = sessionStorage.getItem('withings_access_token');
+  if (!accessToken) {
+    apiResults.innerHTML = `
+      <div class="notice notice-warn">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+        <div class="notice-body"><div class="notice-title">Aucun access_token disponible</div>Connectez-vous d'abord à Withings et fournissez un access_token valide (via "Coller le code reçu manuellement" une fois votre relais serveur en place).</div>
+      </div>`;
+    return;
+  }
+
+  btnFetchMeasures.disabled = true;
+  btnFetchMeasures.textContent = 'Récupération en cours…';
+  apiResults.innerHTML = '';
+
+  try {
+    const groups = await fetchWithingsMeasures(accessToken, dateFromInput.value, dateToInput.value);
+    const records = convertMeasureGroupsToRecords(groups);
+    renderResultsBlock(apiResults, records, `API Withings (${groups.length} relevés bruts)`);
+  } catch (err) {
+    console.error(err);
+    apiResults.innerHTML = `
+      <div class="notice notice-error">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+        <div class="notice-body"><div class="notice-title">Échec de la récupération</div>${escapeHtml(err.message)}</div>
+      </div>`;
+  } finally {
+    btnFetchMeasures.disabled = false;
+    btnFetchMeasures.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg> Récupérer les mesures`;
+  }
+});
+
+// Si l'utilisateur revient sur la page avec ?code=... dans l'URL (cas normal
+// maintenant que redirect_uri pointe vers cette page GitHub Pages elle-même),
+// on récupère directement le code et on nettoie l'URL pour éviter qu'il ne
+// reste visible/partagé par erreur (ex. capture d'écran, historique navigateur).
+(function detectOAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (code) {
+    activateTab('api');
+    setConnectionStatus(
+      null,
+      `Code OAuth reçu (${code.slice(0, 8)}…). Cliquez sur "Coller le code reçu ` +
+      `manuellement" pour générer la commande d'échange code → token.`
+    );
+    btnPasteCode.classList.remove('hidden');
+    // Pré-remplit le code pour que le prochain prompt n'ait plus qu'à être validé.
+    sessionStorage.setItem('withings_pending_code', code);
+    // Nettoie l'URL (retire ?code=...&state=...) sans recharger la page.
+    const cleanUrl = window.location.origin + window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }
+})();
+
+
+/* ============================================================================
+   PWA — Enregistrement du Service Worker + bandeau d'installation discret
+   ============================================================================ */
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch((err) => {
+      console.warn('Service Worker non enregistré :', err);
+    });
+  });
+}
+
+// Capture l'événement natif "beforeinstallprompt" pour afficher un bandeau
+// cohérent avec le design system plutôt que de dépendre uniquement du popup
+// par défaut (variable selon navigateur) — et permet de relancer l'invite
+// d'installation sur un clic explicite de l'utilisateur.
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  showInstallBanner();
+});
+
+function showInstallBanner() {
+  if (document.getElementById('installBanner')) return; // déjà affiché
+  const banner = document.createElement('div');
+  banner.id = 'installBanner';
+  banner.style.cssText = `
+    position: fixed; bottom: 16px; left: 16px; right: 16px; z-index: 9999;
+    background: var(--zinc-900); border: 2px solid var(--blue-border);
+    border-radius: var(--radius-lg); padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    max-width: 480px; margin: 0 auto;
+  `;
+  banner.innerHTML = `
+    <div style="flex:1; font-size:13px; color: var(--zinc-200);">
+      <strong style="color: var(--zinc-100);">Installer l'application</strong><br>
+      <span style="color: var(--zinc-500); font-size:12px;">Ajoutez l'icône à votre écran d'accueil pour un accès rapide.</span>
+    </div>
+    <button id="installBtnYes" class="btn btn-primary" style="flex-shrink:0; padding:8px 14px; font-size:12.5px;">Installer</button>
+    <button id="installBtnNo" class="btn btn-ghost" style="flex-shrink:0; padding:8px 10px; font-size:12.5px;">×</button>
+  `;
+  document.body.appendChild(banner);
+
+  document.getElementById('installBtnYes').addEventListener('click', async () => {
+    banner.remove();
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+    }
+  });
+  document.getElementById('installBtnNo').addEventListener('click', () => banner.remove());
+}
+</script>
+</body>
+</html>
