@@ -1666,6 +1666,75 @@ async function tryExchangeViaRelay(code, redirectUri) {
   }
 }
 
+/**
+ * Stocke l'access_token, le refresh_token, et la date d'expiration absolue
+ * (timestamp ms) dans sessionStorage. La marge de sécurité de 60s évite
+ * d'utiliser un token à la limite exacte de son expiration (latence réseau).
+ */
+function storeTokens(accessToken, refreshToken, expiresInSeconds) {
+  sessionStorage.setItem('withings_access_token', accessToken);
+  if (refreshToken) sessionStorage.setItem('withings_refresh_token', refreshToken);
+  if (expiresInSeconds) {
+    const expiresAt = Date.now() + (expiresInSeconds - 60) * 1000;
+    sessionStorage.setItem('withings_token_expires_at', String(expiresAt));
+  }
+}
+
+/** Tente un rafraîchissement via le relais Cloudflare (endpoint /refresh). */
+async function tryRefreshViaRelay(refreshToken) {
+  if (!OAUTH_RELAY_URL || OAUTH_RELAY_URL.includes('VOTRE-SOUS-DOMAINE')) {
+    return { success: false, reason: 'relay_not_configured' };
+  }
+  try {
+    const resp = await fetch(`${OAUTH_RELAY_URL}/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.access_token) {
+      console.warn('Rafraîchissement via relais échoué :', data);
+      return { success: false, reason: data.error || 'unknown_error', detail: data };
+    }
+    return { success: true, token: data.access_token, refreshToken: data.refresh_token, expiresIn: data.expires_in };
+  } catch (err) {
+    console.warn('Relais OAuth inaccessible (refresh) :', err);
+    return { success: false, reason: 'network_error' };
+  }
+}
+
+/**
+ * Retourne un access_token valide, en le rafraîchissant automatiquement et
+ * silencieusement via le relais si celui en mémoire est expiré ou absent.
+ * Retourne null si aucun token valide n'a pu être obtenu (l'appelant doit
+ * alors inviter l'utilisateur à se reconnecter manuellement).
+ */
+async function getValidAccessToken() {
+  const currentToken = sessionStorage.getItem('withings_access_token');
+  const expiresAt = parseInt(sessionStorage.getItem('withings_token_expires_at') || '0', 10);
+  const refreshToken = sessionStorage.getItem('withings_refresh_token');
+
+  const stillValid = currentToken && expiresAt && Date.now() < expiresAt;
+  if (stillValid) return currentToken;
+
+  // Token absent, expiré, ou sans date connue (ancien flux manuel) : on tente
+  // un rafraîchissement silencieux si on a un refresh_token disponible.
+  if (refreshToken) {
+    setConnectionStatus(null, 'Renouvellement automatique de la connexion Withings…');
+    const result = await tryRefreshViaRelay(refreshToken);
+    if (result.success) {
+      storeTokens(result.token, result.refreshToken, result.expiresIn);
+      setConnectionStatus('connected', 'Connexion Withings renouvelée automatiquement.');
+      return result.token;
+    }
+    console.warn('Rafraîchissement automatique impossible :', result.reason);
+  }
+
+  // Aucun renouvellement possible : retombe sur le token courant s'il existe
+  // encore (au cas où Withings l'accepterait malgré tout), sinon null.
+  return currentToken || null;
+}
+
 /** Flux de repli manuel (commande curl) — utilisé si le relais échoue ou n'est pas configuré. */
 function fallbackManualCurlFlow(cleanCode) {
   const clientId = clientIdInput.value.trim();
@@ -1711,7 +1780,7 @@ function fallbackManualCurlFlow(cleanCode) {
     "Collez ici la valeur d'access_token obtenue dans la réponse JSON de la commande curl :"
   );
   if (manualToken && manualToken.trim()) {
-    sessionStorage.setItem('withings_access_token', manualToken.trim());
+    storeTokens(manualToken.trim(), null, null);
     setConnectionStatus('connected', 'Connecté — access_token enregistré pour cette session.');
     cardPeriod.style.opacity = '1';
     cardPeriod.style.pointerEvents = 'auto';
@@ -1739,8 +1808,7 @@ btnPasteCode.addEventListener('click', async () => {
   const result = await tryExchangeViaRelay(cleanCode, redirectUri);
 
   if (result.success) {
-    sessionStorage.setItem('withings_access_token', result.token);
-    if (result.refreshToken) sessionStorage.setItem('withings_refresh_token', result.refreshToken);
+    storeTokens(result.token, result.refreshToken, result.expiresIn);
     setConnectionStatus('connected', 'Connecté automatiquement via le relais OAuth — aucune étape manuelle nécessaire.');
     cardPeriod.style.opacity = '1';
     cardPeriod.style.pointerEvents = 'auto';
@@ -1827,7 +1895,7 @@ function getApiHeightCm() {
 }
 
 btnFetchMeasures.addEventListener('click', async () => {
-  const accessToken = sessionStorage.getItem('withings_access_token');
+  const accessToken = await getValidAccessToken();
   if (!accessToken) {
     apiResults.innerHTML = `
       <div class="notice notice-warn">
